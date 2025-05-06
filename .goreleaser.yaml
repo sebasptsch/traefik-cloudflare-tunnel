@@ -56,7 +56,7 @@ dockers:
     - "--platform=linux/arm64/v8"
   
 docker_manifests:
-  - name_template: "sebasptsch/traefik-cloudflare-tunnel:{{ .Version }}"
+  - name_template: "ghcr.io/sebasptsch/traefik-cloudflare-tunnel:{{ .Version }}"
     image_templates:
     - "ghcr.io/sebasptsch/traefik-cloudflare-tunnel:{{ .Version }}-amd64"
     - "ghcr.io/sebasptsch/traefik-cloudflare-tunnel:{{ .Version }}-arm64v8"
