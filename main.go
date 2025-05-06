@@ -42,6 +42,11 @@ func main() {
 			log.Fatal(poll.Err)
 		}
 
+		if len(poll.Routers) == 0 {
+			log.Info("no routers found")
+			continue
+		}
+
 		log.Info("polling traefik routers")
 
 		// skip if no changes to traefik routers
@@ -128,11 +133,18 @@ func pollTraefikRouters(client *resty.Client) (ch chan PollResponse) {
 
 		for range c {
 			var pollRes PollResponse
+			var res *resty.Response
 
-			_, pollRes.Err = client.R().
+			res, pollRes.Err = client.R().
 				EnableTrace().
 				SetResult(&pollRes.Routers).
 				Get("/api/http/routers")
+
+			if res.IsError() {
+				pollRes.Err = fmt.Errorf("error polling routers: %s", res.Status())
+				log.Error(pollRes.Err)
+				continue
+			}
 
 			if pollRes.Err != nil {
 				ch <- pollRes
