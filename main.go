@@ -24,6 +24,7 @@ func init() {
 }
 
 func main() {
+	log.Info("starting traefik-cloudflare tunnel")
 	cf, err := cloudflare.NewWithAPIToken(os.Getenv("CLOUDFLARE_API_TOKEN"))
 	if err != nil {
 		log.Fatal(err)
@@ -40,6 +41,8 @@ func main() {
 		if poll.Err != nil {
 			log.Fatal(poll.Err)
 		}
+
+		log.Info("polling traefik routers")
 
 		// skip if no changes to traefik routers
 		if reflect.DeepEqual(cache, poll.Routers) {
@@ -60,10 +63,10 @@ func main() {
 			}
 
 			// Skip any routes with TLS configured
-			if r.TLS.CertResolver != "" {
-				// TODO: use better indicator for TLS
-				continue
-			}
+			// if r.TLS.CertResolver != "" {
+			// 	// TODO: use better indicator for TLS
+			// 	continue
+			// }
 
 			// Only use routes with the tunneld entrypoint
 			if !contains(r.EntryPoints, os.Getenv("TRAEFIK_ENTRYPOINT")) {
