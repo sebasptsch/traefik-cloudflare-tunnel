@@ -51,9 +51,6 @@ func main() {
 
 		log.Info("changes detected")
 
-		// update the cache
-		cache = poll.Routers
-
 		ingress := []cloudflare.UnvalidatedIngressRule{}
 
 		for _, r := range poll.Routers {
@@ -114,6 +111,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		// update the cache
+		cache = poll.Routers
 	}
 }
 
