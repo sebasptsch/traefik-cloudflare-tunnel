@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cloudflare/cloudflare-go"
@@ -47,7 +48,7 @@ func main() {
 			continue
 		}
 
-		log.Info("polling traefik routers")
+		// log.Info("polling traefik routers")
 
 		// skip if no changes to traefik routers
 		if reflect.DeepEqual(cache, poll.Routers) {
@@ -180,62 +181,93 @@ func updateTunnels(ctx context.Context, cf *cloudflare.API, ingress []cloudflare
 
 	log.Info("tunnel config updated")
 
-	// Update DNS to point to new tunnel
-	for _, i := range ingress {
-		if i.Hostname == "" {
-			continue
-		}
-
-		var proxied bool = true
-
-		record := cloudflare.DNSRecord{
-			Type:    "CNAME",
-			Name:    i.Hostname,
-			Content: fmt.Sprintf("%s.cfargotunnel.com", os.Getenv("CLOUDFLARE_TUNNEL_ID")),
-			TTL:     1,
-			Proxied: &proxied,
-		}
-
-		zid := cloudflare.ZoneIdentifier(os.Getenv("CLOUDFLARE_ZONE_ID"))
-		r, _, err := cf.ListDNSRecords(ctx, zid, cloudflare.ListDNSRecordsParams{Name: i.Hostname})
-		if err != nil {
-			return fmt.Errorf("err checking DNS records, %s", err.Error())
-		}
-
-		if len(r) == 0 {
-			_, err := cf.CreateDNSRecord(ctx, zid, cloudflare.CreateDNSRecordParams{
-				Name:    record.Name,
-				Type:    record.Type,
-				Content: record.Content,
-				TTL:     record.TTL,
-				Proxied: record.Proxied,
-			})
-			if err != nil {
-				return fmt.Errorf("unable to create DNS record, %s", err.Error())
+	// split zone ids by comma
+	zoneIDs := os.Getenv("CLOUDFLARE_ZONE_ID")
+	zoneIDsList := []string{}
+	if zoneIDs != "" {
+		for _, id := range strings.Split(zoneIDs, ",") {
+			trimmed := strings.TrimSpace(id)
+			if trimmed != "" {
+				zoneIDsList = append(zoneIDsList, trimmed)
 			}
-			log.WithFields(log.Fields{
-				"domain": record.Name,
-			}).Info("DNS created")
-			continue
-		}
-
-		if r[0].Content != record.Content {
-			_, err = cf.UpdateDNSRecord(ctx, zid, cloudflare.UpdateDNSRecordParams{
-				ID:      record.ID,
-				Name:    record.Name,
-				Type:    record.Type,
-				Content: record.Content,
-				TTL:     record.TTL,
-				Proxied: record.Proxied,
-			})
-			if err != nil {
-				return fmt.Errorf("could not update record for %s, %s", i.Hostname, err)
-			}
-			log.WithFields(log.Fields{
-				"domain": record.Name,
-			}).Info("DNS updated")
 		}
 	}
+
+	for _, zid := range zoneIDsList {
+		// get the zone metadata
+		zone, err := cf.ZoneDetails(ctx, zid)
+		if err != nil {
+			return fmt.Errorf("unable to get zone details, %s", err.Error())
+		}
+
+		log.WithFields(log.Fields{
+			"zone": zid,
+		}).Info("updating DNS records")
+
+		// for ingresses
+		for _, i := range ingress {
+			if i.Hostname == "" {
+				continue
+			}
+
+			// check if the hostname contains the zone name
+			if !strings.Contains(i.Hostname, zone.Name) {
+				continue
+			}
+
+			var proxied bool = true
+
+			record := cloudflare.DNSRecord{
+				Type:    "CNAME",
+				Name:    i.Hostname,
+				Content: fmt.Sprintf("%s.cfargotunnel.com", os.Getenv("CLOUDFLARE_TUNNEL_ID")),
+				TTL:     1,
+				Proxied: &proxied,
+			}
+
+			zid := cloudflare.ZoneIdentifier(zid)
+			r, _, err := cf.ListDNSRecords(ctx, zid, cloudflare.ListDNSRecordsParams{Name: i.Hostname})
+			if err != nil {
+				return fmt.Errorf("err checking DNS records, %s", err.Error())
+			}
+
+			if len(r) == 0 {
+				_, err := cf.CreateDNSRecord(ctx, zid, cloudflare.CreateDNSRecordParams{
+					Name:    record.Name,
+					Type:    record.Type,
+					Content: record.Content,
+					TTL:     record.TTL,
+					Proxied: record.Proxied,
+				})
+				if err != nil {
+					return fmt.Errorf("unable to create DNS record, %s", err.Error())
+				}
+				log.WithFields(log.Fields{
+					"domain": record.Name,
+				}).Info("DNS created")
+				continue
+			}
+
+			if r[0].Content != record.Content {
+				_, err = cf.UpdateDNSRecord(ctx, zid, cloudflare.UpdateDNSRecordParams{
+					ID:      record.ID,
+					Name:    record.Name,
+					Type:    record.Type,
+					Content: record.Content,
+					TTL:     record.TTL,
+					Proxied: record.Proxied,
+				})
+				if err != nil {
+					return fmt.Errorf("could not update record for %s, %s", i.Hostname, err)
+				}
+				log.WithFields(log.Fields{
+					"domain": record.Name,
+				}).Info("DNS updated")
+			}
+		}
+	}
+
+	// Update DNS to point to new tunnel
 
 	// TODO: delete CNAME records with content that is _not_ in our list
 
