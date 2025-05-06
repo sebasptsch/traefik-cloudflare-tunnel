@@ -2,3 +2,5 @@
 example/.env
 
 dist/
+.env
+traefik-cloudflare-tunnel
