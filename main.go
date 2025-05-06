@@ -142,7 +142,6 @@ func pollTraefikRouters(client *resty.Client) (ch chan PollResponse) {
 
 			if res.IsError() {
 				pollRes.Err = fmt.Errorf("error polling routers: %s", res.Status())
-				log.Error(pollRes.Err)
 				continue
 			}
 
