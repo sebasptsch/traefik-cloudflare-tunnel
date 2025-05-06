@@ -1,0 +1,18 @@
+on: 
+    push:
+        branches: 
+            - master
+    pull_request:
+        branches: 
+            - master
+    workflow_dispatch:
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - uses: actions/setup-go@v5
+              name: Setup Go
+            - name: Test
+              run: go test -race -v ./... -cover

@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/cloudflare/cloudflare-go"
@@ -79,11 +80,22 @@ func main() {
 					"service": os.Getenv("TRAEFIK_SERVICE_ENDPOINT"),
 				}).Info("upserting tunnel")
 
+				noTLSVerify, err := strconv.ParseBool(os.Getenv("CLOUDFLARE_NO_TLS_VERIFY"))
+				if err != nil {
+					log.Fatal(err)
+				}
+				http2Origin, err := strconv.ParseBool(os.Getenv("CLOUDFLARE_HTTP2_ORIGIN"))
+				if err != nil {
+					log.Fatal(err)
+				}
+
 				ingress = append(ingress, cloudflare.UnvalidatedIngressRule{
 					Hostname: domain,
 					Service:  os.Getenv("TRAEFIK_SERVICE_ENDPOINT"),
 					OriginRequest: &cloudflare.OriginRequestConfig{
-						HTTPHostHeader: &domain,
+						HTTPHostHeader: &domain,      // Set the HTTP Host header to the domain
+						NoTLSVerify:    &noTLSVerify, // Disable TLS verification for the origin
+						Http2Origin:    &http2Origin, // Enable HTTP/2 for the origin
 					},
 				})
 			}
